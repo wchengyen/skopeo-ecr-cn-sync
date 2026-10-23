@@ -1,0 +1,57 @@
+# =============================================================================
+# skopeo sync 源清单（--src yaml）
+# 作用：声明「海外 repo（源）」里需要同步到「AWS 中国区 ECR（目标）」的镜像
+#
+# 顶层 key = 源 registry 主机名；images 下为 "仓库路径: [tag 列表]"
+#   - []              同步该仓库全部 tag（谨慎，tag 多时很慢）
+#   - ["1.0","2.0"]   仅同步指定 tag（推荐，长期同步用）
+#   - images-by-tag-regex / images-by-semver 可做更细的 tag 过滤
+#
+# 重要（中国区 ECR 行为，已实测）：
+#   1) skopeo sync 的目标仓库名 = <dest-base>/<源仓库路径的最后一段>
+#      例：docker.io/library/busybox  ->  <dest-base>/busybox
+#          gcr.io/google-containers/pause -> <dest-base>/pause
+#      用 `sync_ecr.sh --dry-run` 可打印权威的目标仓库名。
+#   2) ECR 不会在 push 时自动创建仓库，必须先创建。sync_ecr.sh 会自动补齐。
+#
+# 本文件只描述「源」。目标 ECR 与凭证由 sync_ecr.sh 在命令行注入，
+# 不要把中国区 ECR 的账号口令写进本文件。
+# =============================================================================
+
+# ---- Google 容器仓库（gcr.io）——已实测可同步 ----
+gcr.io:
+  images:
+    # google 官方 pause 镜像，体积 < 1MB，适合做连通性与长期同步验证
+    google-containers/pause:
+      - "3.2"
+    # distroless 静态基底，多架构 manifest list，< 1MB
+    distroless/static-debian12:
+      - "latest"
+
+# ---- Docker Hub（docker.io）——已实测可同步 ----
+docker.io:
+  images:
+    library/busybox:
+      - "latest"
+    # python:slim 约 41MB（< 100MB）。注意：配合脚本的 --all 会同步全部架构，
+    # 跨境多架构体积会放大、耗时较长。仅需单架构时，去掉脚本 --all 即可。
+    library/python:
+      - "3.12-slim"
+    # eclipse-temurin:17-jre 约 104.7MB（100MB+，已实测跨境同步耗时约 72s/单架构）
+    library/eclipse-temurin:
+      - "17-jre"
+
+# ---- Atlassian / Bitbucket 公开镜像（Docker Hub 上的公开 repo）----
+# Bitbucket 本身主要托管代码，其官方公开容器镜像发布在 Docker Hub。
+# 如需同步你自己的 Bitbucket 构建产物，参见 README 第 7 节（Pipelines 推送）。
+#  docker.io:
+#    images:
+#      atlassian/default-image:
+#        - "4"
+
+# ---- 海外 global 区 ECR（需要源凭证）----
+# 推荐用 --src-authfile 注入，不要在此写明文口令。
+# <SRC_ACCOUNT>.dkr.ecr.us-east-1.amazonaws.com:
+#   images:
+#     my-app:
+#       - "release-2026.10"

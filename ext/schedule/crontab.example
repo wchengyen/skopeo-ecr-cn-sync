@@ -1,0 +1,4 @@
+# crontab 方式（systemd 不可用时的替代）
+# 安装：crontab -e 后粘贴以下行
+# 每天 02:30 执行；日志追加到 /var/log/ecr-sync.log
+30 2 * * * AWS_REGION=cn-northwest-1 DEST_BASE_PATH=mirror IMAGES_YAML=/opt/ecr-sync/images.yaml /opt/ecr-sync/sync_ecr.sh >> /var/log/ecr-sync.log 2>&1

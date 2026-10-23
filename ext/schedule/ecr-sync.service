@@ -1,0 +1,24 @@
+# systemd service：执行一次 skopeo 同步
+# 安装位置：/etc/systemd/system/ecr-sync.service
+# 配合 ecr-sync.timer 实现长期定时同步。
+#
+# 前提：
+#   - 本机已安装 aws cli v2 / skopeo / jq
+#   - 已为运行身份配置中国区凭证（推荐给 EC2 绑定 IAM Role，使用 ecr-sync-policy.json）
+#   - sync_ecr.sh 与 images.yaml 放在 /opt/ecr-sync/ 下
+[Unit]
+Description=Sync overseas container images into AWS China ECR (skopeo)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=AWS_REGION=cn-northwest-1
+Environment=DEST_BASE_PATH=mirror
+Environment=IMAGES_YAML=/opt/ecr-sync/images.yaml
+Environment=RETRY_TIMES=5
+WorkingDirectory=/opt/ecr-sync
+ExecStart=/opt/ecr-sync/sync_ecr.sh
+# 失败不影响下次定时触发；日志进 journald
+StandardOutput=journal
+StandardError=journal

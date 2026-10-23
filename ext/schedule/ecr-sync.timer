@@ -1,0 +1,23 @@
+# systemd timer：定时触发 ecr-sync.service，实现长期同步
+# 安装位置：/etc/systemd/system/ecr-sync.timer
+#
+# 启用：
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ecr-sync.timer
+# 查看下次触发：
+#   systemctl list-timers ecr-sync.timer
+# 手动跑一次：
+#   sudo systemctl start ecr-sync.service && journalctl -u ecr-sync.service -f
+[Unit]
+Description=Schedule for ECR cross-border sync
+
+[Timer]
+# 每天 02:30（北京时间，取决于主机时区）执行一次；可按需改为 hourly 等
+OnCalendar=*-*-* 02:30:00
+# 错过触发时间（如机器关机）开机后尽快补跑
+Persistent=true
+# 加入随机抖动，避免整点并发拉取
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

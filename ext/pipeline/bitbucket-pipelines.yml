@@ -1,0 +1,55 @@
+# =============================================================================
+# Bitbucket Pipelines 示例：用 skopeo 把镜像同步到 AWS 中国区 ECR
+#
+# 两种用法：
+#   A. custom（手动/定时）流水线：批量同步 images.yaml 清单（长期同步可配 Scheduled Pipeline）
+#   B. 构建后推送：把本仓库 CI 构建出的自建镜像推送到中国区 ECR
+#
+# 凭证（Repository settings -> Repository variables，勾选 Secured）：
+#   AWS_ACCESS_KEY_ID       = <中国区 IAM 用户 AK>
+#   AWS_SECRET_ACCESS_KEY   = <SK，Secured>
+#   AWS_REGION              = cn-northwest-1
+#   AWS_ACCOUNT_ID          = <中国区账号 12 位 ID>
+# IAM 权限见 ext/iam/ecr-sync-policy.json（最小权限，仅 mirror/* 可推送）。
+#
+# 说明：Bitbucket Cloud runner 在海外，跨境那一跳发生在 runner -> 中国区 ECR。
+#       若长期同步量大/易超时，建议用部署在中国区 EC2 的 self-hosted runner，
+#       让 push 变为区内流量（见 README 第 6 节）。
+# =============================================================================
+image: amazon/aws-cli:2.17.0   # 自带 aws cli；下面再装 skopeo
+
+definitions:
+  steps:
+    - step: &sync-from-yaml
+        name: Sync overseas images -> China ECR
+        script:
+          - yum install -y skopeo jq || microdnf install -y skopeo jq
+          - chmod +x ext/sync/sync_ecr.sh
+          - AWS_REGION="$AWS_REGION" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID"
+            IMAGES_YAML=ext/sync/images.yaml DEST_BASE_PATH=mirror
+            ext/sync/sync_ecr.sh
+
+pipelines:
+  # ---- A. 手动/定时批量同步（在 Pipelines 页面可配置 Scheduled 定时执行）----
+  custom:
+    sync-mirror:
+      - step: *sync-from-yaml
+
+  # ---- B. 推送本仓库构建出的自建镜像（示例：按 commit 打 tag）----
+  branches:
+    main:
+      - step:
+          name: Build & push app image to China ECR
+          script:
+            - yum install -y skopeo jq || microdnf install -y skopeo jq
+            - export ECR_HOST="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com.cn"
+            - export REPO="mirror/my-app"
+            # 确保目标仓库存在
+            - aws ecr describe-repositories --repository-names "$REPO" --region "$AWS_REGION"
+              || aws ecr create-repository --repository-name "$REPO" --region "$AWS_REGION"
+            # 假设上游已把镜像推到某海外源 $SRC_IMAGE，这里跨境复制到中国区 ECR
+            - export ECR_PWD=$(aws ecr get-login-password --region "$AWS_REGION")
+            - skopeo copy --all --retry-times 5
+              "docker://$SRC_IMAGE"
+              "docker://$ECR_HOST/$REPO:$BITBUCKET_COMMIT"
+              --dest-creds "AWS:$ECR_PWD"
