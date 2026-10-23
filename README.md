@@ -177,6 +177,8 @@ skopeo copy --all --retry-times 5 \
 aws ecr describe-images --repository-name skopeo-sync-test/distroless-static --region cn-northwest-1
 # => tags: ["latest"]，每架构镜像约 0.7MB
 ```
+另外实测了一个 100MB+ 镜像 `docker.io/library/eclipse-temurin:17-jre`（压缩体积
+104.7MB，单架构）：跨境同步耗时约 72s，明显高于小镜像，体现大镜像跨境传输的真实成本。
 
 ### 7.2 清单批量同步（gcr.io + docker.io → 中国区 ECR）
 `sync_ecr.sh` 自动：dry-run 计算目标仓库 → 建仓 → 同步。实测数据（压缩体积为 amd64
@@ -294,7 +296,4 @@ skopeo inspect --raw docker://$ECR_HOST/mirror/static-debian12:latest --creds "A
 | `ext/schedule/crontab.example` | crontab 定时替代方案 |
 | `ext/pipeline/bitbucket-pipelines.yml` | Bitbucket CI 同步/推送示例 |
 | `ext/docgen/make_arch_png.py` | 架构图生成脚本（Pillow → arch.png） |
-| `ext/docgen/make_docx.py` | Word 文档生成脚本（内嵌架构图） |
-| `ext/docgen/arch.png` | 架构图图片 |
-| `海外repo同步AWS中国区ECR方案(skopeo).docx` | Word 说明文档 |
-| `海外repo同步AWS中国区ECR方案(skopeo).pdf` | PDF 说明文档 |
+| `ext/docgen/arch.png` | 架构图图片（README 第 2 节引用） |
